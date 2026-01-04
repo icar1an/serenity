@@ -1,0 +1,8 @@
+{
+    "showDonationLink": true,
+    "extensionImportList": {
+        "safari": [],
+        "firefox": [],
+        "chromium": []
+    }
+}
