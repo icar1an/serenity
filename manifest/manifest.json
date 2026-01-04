@@ -1,26 +1,27 @@
 {
-    "name": "__MSG_fullName__",
-    "short_name": "SponsorBlock",
+    "name": "Serenity - AI Channel Filter",
+    "short_name": "Serenity",
     "version": "6.1.2",
     "default_locale": "en",
     "description": "__MSG_Description__",
-    "homepage_url": "https://sponsor.ajay.app",
+    "homepage_url": "https://serenity.extension",
     "icons": {
-        "16": "icons/IconSponsorBlocker16px.png",
-        "32": "icons/IconSponsorBlocker32px.png",
-        "64": "icons/IconSponsorBlocker64px.png",
-        "128": "icons/IconSponsorBlocker128px.png",
-        "256": "icons/IconSponsorBlocker256px.png",
-        "512": "icons/IconSponsorBlocker512px.png",
-        "1024": "icons/IconSponsorBlocker1024px.png"
+        "16": "icons/IconSerenity16px.png",
+        "32": "icons/IconSerenity32px.png",
+        "64": "icons/IconSerenity64px.png",
+        "128": "icons/IconSerenity128px.png",
+        "256": "icons/IconSerenity256px.png",
+        "512": "icons/IconSerenity512px.png",
+        "1024": "icons/IconSerenity1024px.png"
     },
     "permissions": [
         "storage",
         "scripting",
-        "unlimitedStorage"
+        "unlimitedStorage",
+        "contextMenus"
     ],
     "options_ui": {
         "page": "options/options.html",
         "open_in_tab": true
     }
-}  
+}

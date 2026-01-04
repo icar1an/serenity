@@ -8,7 +8,9 @@
         "sourceMap": true,
         "outDir": "dist/js",
         "noEmitOnError": false,
-        "typeRoots": [ "node_modules/@types" ],
+        "typeRoots": [
+            "node_modules/@types"
+        ],
         "resolveJsonModule": true,
         "jsx": "react",
         "lib": [
@@ -19,5 +21,9 @@
     },
     "include": [
         "src/**/*"
+    ],
+    "exclude": [
+        "supabase",
+        "node_modules"
     ]
 }

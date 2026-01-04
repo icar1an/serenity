@@ -33,7 +33,7 @@ const schema = {
 };
 
 class BuildManifest {
-    constructor (options = {}) {
+    constructor(options = {}) {
         validate(schema, options, "Build Manifest Plugin");
 
         this.options = options;
@@ -42,17 +42,17 @@ class BuildManifest {
     apply() {
         const distFolder = path.resolve(__dirname, "../dist/");
         const distManifestFile = path.resolve(distFolder, "manifest.json");
-        const [owner, repo_name] = (process.env.GITHUB_REPOSITORY ?? "ajayyy/SponsorBlock").split("/");
+        const [owner, repo_name] = (process.env.GITHUB_REPOSITORY ?? "serenity/serenity").split("/");
 
         // Add missing manifest elements
         if (this.options.browser.toLowerCase() === "firefox") {
             mergeObjects(manifest, manifestV2ManifestExtra);
             mergeObjects(manifest, firefoxManifestExtra);
-        } else if (this.options.browser.toLowerCase() === "chrome" 
-                || this.options.browser.toLowerCase() === "chromium"
-                || this.options.browser.toLowerCase() === "edge") {
+        } else if (this.options.browser.toLowerCase() === "chrome"
+            || this.options.browser.toLowerCase() === "chromium"
+            || this.options.browser.toLowerCase() === "edge") {
             mergeObjects(manifest, chromeManifestExtra);
-        }  else if (this.options.browser.toLowerCase() === "safari") {
+        } else if (this.options.browser.toLowerCase() === "safari") {
             mergeObjects(manifest, manifestV2ManifestExtra);
             mergeObjects(manifest, safariManifestExtra);
             manifest.optional_permissions = manifest.optional_permissions.filter((a) => a !== "*://*/*");
@@ -73,7 +73,7 @@ class BuildManifest {
         let result = JSON.stringify(manifest);
         if (this.options.pretty) result = JSON.stringify(manifest, null, 2);
 
-        fs.mkdirSync(distFolder, {recursive: true});
+        fs.mkdirSync(distFolder, { recursive: true });
         fs.writeFileSync(distManifestFile, result);
     }
 }

@@ -1,19 +1,21 @@
-import * as CompileConfig from "../config.json";
-
 import Config from "./config";
 import { Registration } from "./types";
 import "content-scripts-register-polyfill";
-import { sendRealRequestToCustomServer, serializeOrStringify, setupBackgroundRequestProxy } from "../maze-utils/src/background-request-proxy";
+import { setupBackgroundRequestProxy } from "../maze-utils/src/background-request-proxy";
 import { setupTabUpdates } from "../maze-utils/src/tab-updates";
 import { generateUserID } from "../maze-utils/src/setup";
 
 import Utils from "./utils";
-import { getExtensionIdsToImportFrom } from "./utils/crossExtension";
+import { getExtensionIdsToImportFrom } from "./utils/configUtils";
 import { isFirefoxOrSafari, waitFor } from "../maze-utils/src";
 import { injectUpdatedScripts } from "../maze-utils/src/cleanup";
 import { logWarn } from "./utils/logger";
 import { chromeP } from "../maze-utils/src/browserApi";
 import { getHash } from "../maze-utils/src/hash";
+import { setOverride, getOverride, removeOverride, listOverrides } from "./utils/manualOverrides";
+import { invalidateDBCache } from "./utils/channelLabels";
+import { initializeSerenityConfig } from "./utils/serenityConfig";
+
 const utils = new Utils({
     registerFirefoxContentScript,
     unregisterFirefoxContentScript
@@ -25,29 +27,28 @@ const popupPort: Record<string, chrome.runtime.Port> = {};
 const contentScriptRegistrations = {};
 
 // Register content script if needed
-utils.wait(() => Config.isReady()).then(function() {
+utils.wait(() => Config.isReady()).then(function () {
     if (Config.config.supportInvidious) utils.setupExtraSiteContentScripts();
 });
 
 setupBackgroundRequestProxy();
 setupTabUpdates(Config);
 
+// Serenity: Initialize config on startup
+initializeSerenityConfig().catch(e => console.error('[Serenity] Config init failed:', e));
+
 chrome.runtime.onMessage.addListener(function (request, sender, callback) {
-    switch(request.message) {
+    switch (request.message) {
         case "openConfig":
-            chrome.tabs.create({url: chrome.runtime.getURL('options/options.html' + (request.hash ? '#' + request.hash : ''))});
+            chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html' + (request.hash ? '#' + request.hash : '')) });
             return false;
         case "openHelp":
-            chrome.tabs.create({url: chrome.runtime.getURL('help/index.html')});
+            chrome.tabs.create({ url: chrome.runtime.getURL('help/index.html') });
             return false;
         case "openPage":
-            chrome.tabs.create({url: chrome.runtime.getURL(request.url)});
+            chrome.tabs.create({ url: chrome.runtime.getURL(request.url) });
             return false;
-        case "submitVote":
-            submitVote(request.type, request.UUID, request.category, request.videoID).then(callback);
 
-            //this allows the callback to be called later
-            return true;
         case "registerContentScript":
             registerFirefoxContentScript(request);
             return false;
@@ -80,9 +81,36 @@ chrome.runtime.onMessage.addListener(function (request, sender, callback) {
                 }
             }
             return false;
+        // Serenity: Manual override handlers
+        case "serenity_set_override":
+            setOverride(request.channelId, request.action, request.handle)
+                .then(() => {
+                    invalidateDBCache(request.channelId);
+                    callback({ success: true });
+                })
+                .catch(e => callback({ success: false, error: e.message }));
+            return true;
+        case "serenity_get_override":
+            getOverride(request.channelId)
+                .then(action => callback({ action }))
+                .catch(e => callback({ action: null, error: e.message }));
+            return true;
+        case "serenity_remove_override":
+            removeOverride(request.channelId)
+                .then(() => {
+                    invalidateDBCache(request.channelId);
+                    callback({ success: true });
+                })
+                .catch(e => callback({ success: false, error: e.message }));
+            return true;
+        case "serenity_list_overrides":
+            listOverrides()
+                .then(overrides => callback({ overrides }))
+                .catch(e => callback({ overrides: [], error: e.message }));
+            return true;
         default:
             return false;
-	}
+    }
 });
 
 chrome.runtime.onMessageExternal.addListener((request, sender, callback) => {
@@ -90,9 +118,8 @@ chrome.runtime.onMessageExternal.addListener((request, sender, callback) => {
         if (request.message === "requestConfig") {
             callback({
                 userID: Config.config.userID,
-                allowExpirements: Config.config.allowExpirements,
+
                 showDonationLink: Config.config.showDonationLink,
-                showUpsells: Config.config.showUpsells,
                 darkMode: Config.config.darkMode,
             })
         }
@@ -118,9 +145,9 @@ chrome.runtime.onInstalled.addListener(function () {
         const userID = Config.config.userID;
 
         // If there is no userID, then it is the first install.
-        if (!userID && !Config.local.alreadyInstalled){
+        if (!userID && !Config.local.alreadyInstalled) {
             //open up the install page
-            chrome.tabs.create({url: chrome.runtime.getURL("/help/index.html")});
+            chrome.tabs.create({ url: chrome.runtime.getURL("/help/index.html") });
 
             //generate a userID
             const newUserID = generateUserID();
@@ -128,13 +155,11 @@ chrome.runtime.onInstalled.addListener(function () {
             Config.config.userID = newUserID;
             Config.local.alreadyInstalled = true;
 
-            // Don't show update notification
-            Config.config.categoryPillUpdate = true;
         }
 
         if (Config.config.supportInvidious) {
             if (!(await utils.containsInvidiousPermission())) {
-                chrome.tabs.create({url: chrome.runtime.getURL("/permissions/index.html")});
+                chrome.tabs.create({ url: chrome.runtime.getURL("/permissions/index.html") });
             }
         }
 
@@ -156,6 +181,35 @@ chrome.runtime.onInstalled.addListener(function () {
             }
         }).catch(logWarn);
     }
+
+    // Serenity: Create context menu for channel labeling
+    chrome.contextMenus.create({
+        id: 'serenity-label-channel',
+        title: 'Label this channel (Serenity)',
+        contexts: ['page'],
+        documentUrlPatterns: ['https://www.youtube.com/*', 'https://youtube.com/*']
+    });
+});
+
+// Serenity: Handle context menu clicks for channel labeling
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === 'serenity-label-channel' && tab?.id) {
+        // Get video/channel info from the current page
+        chrome.tabs.sendMessage(tab.id, { message: 'serenity_get_video_info' }, (response) => {
+            const params = new URLSearchParams();
+
+            if (response?.videoId) params.set('videoId', response.videoId);
+            if (response?.channelId) params.set('channelId', response.channelId);
+            if (response?.handle) params.set('handle', response.handle);
+            if (response?.title) params.set('title', response.title);
+            if (response?.channelTitle) params.set('channelTitle', response.channelTitle);
+            if (response?.description) params.set('description', response.description);
+            if (response?.thumbnail) params.set('thumbnail', response.thumbnail);
+
+            const labelerUrl = chrome.runtime.getURL(`pages/labeler/labeler.html?${params.toString()}`);
+            chrome.tabs.create({ url: labelerUrl });
+        });
+    }
 });
 
 /**
@@ -170,7 +224,7 @@ async function registerFirefoxContentScript(options: Registration) {
             ids: [options.id]
         }).catch(() => []);
 
-        if (existingRegistrations && existingRegistrations.length > 0 
+        if (existingRegistrations && existingRegistrations.length > 0
             && options.matches.every((match) => existingRegistrations[0].matches.includes(match))) {
             // No need to register another script, already registered
             return;
@@ -192,8 +246,8 @@ async function registerFirefoxContentScript(options: Registration) {
     } else {
         chrome.contentScripts.register({
             allFrames: options.allFrames,
-            js: options.js?.map?.(file => ({file})),
-            css: options.css?.map?.(file => ({file})),
+            js: options.js?.map?.(file => ({ file })),
+            css: options.css?.map?.(file => ({ file })),
             matches: options.matches
         }).then((registration) => void (contentScriptRegistrations[options.id] = registration));
     }
@@ -204,7 +258,7 @@ async function registerFirefoxContentScript(options: Registration) {
  * Only works on Firefox.
  * Firefox requires that this is handled by the background script
  */
-async function  unregisterFirefoxContentScript(id: string) {
+async function unregisterFirefoxContentScript(id: string) {
     if ("scripting" in chrome && "getRegisteredContentScripts" in chrome.scripting) {
         try {
             await chromeP.scripting.unregisterContentScripts({
@@ -221,36 +275,8 @@ async function  unregisterFirefoxContentScript(id: string) {
     }
 }
 
-async function submitVote(type: number, UUID: string, category: string, videoID: string) {
-    let userID = Config.config.userID;
-
-    if (userID == undefined || userID === "undefined") {
-        //generate one
-        userID = generateUserID();
-        Config.config.userID = userID;
-    }
-
-    const typeSection = (type !== undefined) ? "&type=" + type : "&category=" + category;
-
-    try {
-        const response = await asyncRequestToServer("POST", "/api/voteOnSponsorTime?UUID=" + UUID + "&videoID=" + videoID + "&userID=" + userID + typeSection);
-
-        return {
-            status: response.status,
-            ok: response.ok,
-            responseText: await response.text(),
-        };
-    } catch (e) {
-        console.error("Error while voting:", e);
-        return {
-            error: serializeOrStringify(e),
-        };
-    }
-}
 
 
-async function asyncRequestToServer(type: string, address: string, data = {}) {
-    const serverAddress = Config.config.testingServer ? CompileConfig.testingServerAddress : Config.config.serverAddress;
 
-    return await (sendRealRequestToCustomServer(type, serverAddress + address, data));
-}
+
+

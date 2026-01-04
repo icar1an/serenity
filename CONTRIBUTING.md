@@ -1,18 +1,14 @@
-If you make any contributions to SponsorBlock after this file was created, you are agreeing that any code you have contributed will be licensed under GPL-3.0 and agree to allow distribution on app stores as outlined in LICENSE-APPSTORE.
+If you make any contributions to Serenity after this file was created, you are agreeing that any code you have contributed will be licensed under GPL-3.0 and agree to allow distribution on app stores as outlined in LICENSE-APPSTORE.
 
 # Translations
-https://crowdin.com/project/sponsorblock
+Our translations are managed via community-driven initiatives. Please check the project's discussions for the current localization platform.
 
 # Building
 ## Building locally
-0. You must have [Node.js 22 or later](https://nodejs.org/) and npm installed. Works best on Linux
-1. Clone with submodules
+0. You must have [Node.js 22 or later](https://nodejs.org/) and npm installed.
+1. Clone the repository:
   ```bash
-  git clone --recursive https://github.com/ajayyy/SponsorBlock
-  ```
-  Or if you already cloned it, pull submodules with
-  ```bash
-  git submodule update --init --recursive
+  git clone https://github.com/serenity/serenity
   ```
 2. Copy the file `config.json.example` to `config.json` and adjust configuration as desired.
   - Comments are invalid in JSON, make sure they are all removed.

@@ -2,8 +2,7 @@
 // Message and Response Types
 //
 
-import { ConfigurationID } from "./config";
-import { SegmentUUID, SponsorHideType, SponsorTime, VideoID } from "./types";
+import { VideoID } from "./types";
 
 interface BaseMessage {
     from?: string;
@@ -11,50 +10,20 @@ interface BaseMessage {
 
 interface DefaultMessage {
     message:
-        "update"
-        | "sponsorStart"
-        | "getChannelID"
-        | "submitTimes"
-        | "refreshSegments"
-        | "closePopup"
-        | "getLogs";
+    "update"
+    | "getChannelID"
+    | "closePopup"
+    | "getLogs";
 }
 
 interface IsInfoFoundMessage {
     message: "isInfoFound";
-    updating: boolean;
-}
-
-interface SkipMessage {
-    message: "unskip" | "reskip" | "selectSegment";
-    UUID: SegmentUUID;
-}
-
-interface SubmitVoteMessage {
-    message: "submitVote";
-    type: number;
-    UUID: SegmentUUID;
-}
-
-interface HideSegmentMessage {
-    message: "hideSegment";
-    type: SponsorHideType;
-    UUID: SegmentUUID;
+    updating?: boolean;
 }
 
 interface CopyToClipboardMessage {
     message: "copyToClipboard";
     text: string;
-}
-
-interface ImportSegmentsMessage {
-    message: "importSegments";
-    data: string;
-}
-
-interface LoopChapterMessage {
-    message: "loopChapter";
-    UUID: SegmentUUID;
 }
 
 interface KeyDownMessage {
@@ -69,24 +38,21 @@ interface KeyDownMessage {
     metaKey: boolean;
 }
 
-interface SetCurrentTabSkipProfileResponse {
-    message: "setCurrentTabSkipProfile";
-    configID: ConfigurationID | null;
+// Serenity: Message for getting video info for labeler
+interface SerenityVideoInfoMessage {
+    message: "serenity_get_video_info";
 }
 
-export type Message = BaseMessage & (DefaultMessage | IsInfoFoundMessage | SkipMessage | SubmitVoteMessage | HideSegmentMessage | CopyToClipboardMessage | ImportSegmentsMessage | KeyDownMessage | LoopChapterMessage | SetCurrentTabSkipProfileResponse);
+export type Message = BaseMessage & (DefaultMessage | IsInfoFoundMessage | CopyToClipboardMessage | KeyDownMessage | SerenityVideoInfoMessage);
 
 export interface IsInfoFoundMessageResponse {
     found: boolean;
     status: number | string | Error;
-    sponsorTimes: SponsorTime[];
     time: number;
     onMobileYouTube: boolean;
     videoID: VideoID;
-    loopedChapter: SegmentUUID | null;
     channelID: string;
     channelAuthor: string;
-    currentTabSkipProfileID: ConfigurationID | null;
 }
 
 interface GetVideoIdResponse {
@@ -98,45 +64,19 @@ export interface GetChannelIDResponse {
     isYTTV: boolean;
 }
 
-export interface SponsorStartResponse {
-    creatingSegment: boolean;
-}
-
 export interface IsChannelWhitelistedResponse {
     value: boolean;
 }
 
-export interface LoopedChapterResponse {
-    UUID: SegmentUUID;
-}
-
-export type MessageResponse =
-    IsInfoFoundMessageResponse
-    | GetVideoIdResponse
-    | GetChannelIDResponse
-    | SponsorStartResponse
-    | IsChannelWhitelistedResponse
-    | Record<string, never> // empty object response {}
-    | VoteResponse
-    | ImportSegmentsResponse
-    | RefreshSegmentsResponse
-    | LogResponse
-    | LoopedChapterResponse;
-
-export type VoteResponse = {
-    status: number;
-    ok: boolean;
-    responseText: string;
-} | {
-    error: Error | string;
-};
-
-interface ImportSegmentsResponse {
-    importedSegments: SponsorTime[];
-}
-
-export interface RefreshSegmentsResponse {
-    hasVideo: boolean;
+// Serenity: Response for video info request
+export interface SerenityVideoInfoResponse {
+    videoId: VideoID | null;
+    channelId: string | null;
+    handle?: string;
+    channelTitle?: string;
+    title?: string;
+    description?: string;
+    thumbnail?: string | null;
 }
 
 export interface LogResponse {
@@ -149,8 +89,11 @@ export interface TimeUpdateMessage {
     time: number;
 }
 
-export type InfoUpdatedMessage = IsInfoFoundMessageResponse & {
+export interface InfoUpdatedMessage {
     message: "infoUpdated";
+    videoID: VideoID;
+    channelID: string;
+    channelAuthor: string;
 }
 
 export interface VideoChangedPopupMessage {
@@ -161,3 +104,12 @@ export interface VideoChangedPopupMessage {
 }
 
 export type PopupMessage = TimeUpdateMessage | InfoUpdatedMessage | VideoChangedPopupMessage;
+
+export type MessageResponse =
+    IsInfoFoundMessageResponse
+    | GetVideoIdResponse
+    | GetChannelIDResponse
+    | IsChannelWhitelistedResponse
+    | Record<string, never> // empty object response {}
+    | LogResponse
+    | SerenityVideoInfoResponse;

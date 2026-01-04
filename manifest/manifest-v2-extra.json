@@ -1,12 +1,12 @@
 {
     "web_accessible_resources": [
-        "icons/LogoSponsorBlocker256px.png",
-        "icons/IconSponsorBlocker256px.png",
-        "icons/PlayerStartIconSponsorBlocker.svg",
-        "icons/PlayerStopIconSponsorBlocker.svg",
-        "icons/PlayerUploadIconSponsorBlocker.svg",
-        "icons/PlayerUploadFailedIconSponsorBlocker.svg",
-        "icons/PlayerCancelSegmentIconSponsorBlocker.svg",
+        "icons/LogoSerenity256px.png",
+        "icons/IconSerenity256px.png",
+        "icons/PlayerStartIconSerenity.svg",
+        "icons/PlayerStopIconSerenity.svg",
+        "icons/PlayerUploadIconSerenity.svg",
+        "icons/PlayerUploadFailedIconSerenity.svg",
+        "icons/PlayerCancelSegmentIconSerenity.svg",
         "icons/clipboard.svg",
         "icons/settings.svg",
         "icons/pencil.svg",
@@ -42,8 +42,8 @@
         "icons/music-note.svg",
         "icons/import.svg",
         "icons/export.svg",
-        "icons/PlayerInfoIconSponsorBlocker.svg",
-        "icons/PlayerDeleteIconSponsorBlocker.svg",
+        "icons/PlayerInfoIconSerenity.svg",
+        "icons/PlayerDeleteIconSerenity.svg",
         "icons/dearrow.svg",
         "icons/sb-pride.png",
         "icons/pride.svg",
@@ -59,80 +59,82 @@
         "libs/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlBduz8A.woff2"
     ],
     "permissions": [
-        "https://sponsor.ajay.app/*"
+        "https://serenity.extension/*"
     ],
     "optional_permissions": [
         "*://*/*"
     ],
     "browser_action": {
-        "default_title": "SponsorBlock",
+        "default_title": "Serenity",
         "default_popup": "popup.html",
         "default_icon": {
-            "16": "icons/IconSponsorBlocker16px.png",
-            "32": "icons/IconSponsorBlocker32px.png",
-            "64": "icons/IconSponsorBlocker64px.png",
-            "128": "icons/IconSponsorBlocker128px.png"
+            "16": "icons/IconSerenity16px.png",
+            "32": "icons/IconSerenity32px.png",
+            "64": "icons/IconSerenity64px.png",
+            "128": "icons/IconSerenity128px.png"
         },
         "theme_icons": [
             {
-                "light": "icons/IconSponsorBlocker16px.png",
-                "dark": "icons/IconSponsorBlocker16px.png",
+                "light": "icons/IconSerenity16px.png",
+                "dark": "icons/IconSerenity16px.png",
                 "size": 16
             },
             {
-                "light": "icons/IconSponsorBlocker32px.png",
-                "dark": "icons/IconSponsorBlocker32px.png",
+                "light": "icons/IconSerenity32px.png",
+                "dark": "icons/IconSerenity32px.png",
                 "size": 32
             },
             {
-                "light": "icons/IconSponsorBlocker64px.png",
-                "dark": "icons/IconSponsorBlocker64px.png",
+                "light": "icons/IconSerenity64px.png",
+                "dark": "icons/IconSerenity64px.png",
                 "size": 64
             },
             {
-                "light": "icons/IconSponsorBlocker128px.png",
-                "dark": "icons/IconSponsorBlocker128px.png",
+                "light": "icons/IconSerenity128px.png",
+                "dark": "icons/IconSerenity128px.png",
                 "size": 128
             },
             {
-                "light": "icons/IconSponsorBlocker256px.png",
-                "dark": "icons/IconSponsorBlocker256px.png",
+                "light": "icons/IconSerenity256px.png",
+                "dark": "icons/IconSerenity256px.png",
                 "size": 256
             },
             {
-                "light": "icons/IconSponsorBlocker512px.png",
-                "dark": "icons/IconSponsorBlocker512px.png",
+                "light": "icons/IconSerenity512px.png",
+                "dark": "icons/IconSerenity512px.png",
                 "size": 512
             },
             {
-                "light": "icons/IconSponsorBlocker1024px.png",
-                "dark": "icons/IconSponsorBlocker1024px.png",
+                "light": "icons/IconSerenity1024px.png",
+                "dark": "icons/IconSerenity1024px.png",
                 "size": 1024
             }
         ]
     },
     "background": {
-        "scripts":[
+        "scripts": [
             "./js/background.js"
         ]
     },
-    "content_scripts": [{
-        "run_at": "document_start",
-        "matches": [
-            "https://*.youtube.com/*",
-            "https://www.youtube-nocookie.com/embed/*"
-        ],
-        "exclude_matches": [
-            "https://accounts.youtube.com/RotateCookiesPage*"
-        ],
-        "all_frames": true,
-        "js": [
-            "./js/content.js"
-        ],
-        "css": [
-            "content.css",
-            "shared.css"
-        ]
-    }],
+    "content_scripts": [
+        {
+            "run_at": "document_start",
+            "matches": [
+                "https://*.youtube.com/*",
+                "https://www.youtube-nocookie.com/embed/*"
+            ],
+            "exclude_matches": [
+                "https://accounts.youtube.com/RotateCookiesPage*"
+            ],
+            "all_frames": true,
+            "js": [
+                "./js/content.js"
+            ],
+            "css": [
+                "content.css",
+                "shared.css"
+            ]
+        }
+    ],
     "manifest_version": 2
-}  
+}

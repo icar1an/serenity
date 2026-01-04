@@ -7,7 +7,8 @@ const BuildManifest = require('./webpack.manifest');
 const srcDir = '../src/';
 const fs = require("fs");
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
-const configDiffPlugin = require('./configDiffPlugin');
+
+const Dotenv = require('dotenv-webpack');
 
 const edgeLanguages = [
     "de",
@@ -26,6 +27,18 @@ const edgeLanguages = [
 ]
 
 
+
+// Load .env file manually for DefinePlugin
+const envPath = path.join(__dirname, '../.env');
+const dotenvResult = require('dotenv').config({ path: envPath });
+
+if (dotenvResult.error) {
+    console.warn('[Webpack] Could not load .env file from:', envPath);
+} else {
+    console.log('[Webpack] Loaded .env file');
+    console.log('[Webpack] SUPABASE_URL present:', !!process.env.SUPABASE_URL);
+    console.log('[Webpack] MANUAL_LABELER_TOKEN present:', !!process.env.MANUAL_LABELER_TOKEN);
+}
 
 module.exports = env => {
     const documentScriptBuild = webpack({
@@ -93,7 +106,7 @@ module.exports = env => {
 
     return {
         entry: {
-            popup: path.join(__dirname, srcDir + 'popup/popup.tsx'),
+            popup: path.join(__dirname, srcDir + 'popup/popup.ts'),
             background: path.join(__dirname, srcDir + 'background.ts'),
             content: path.join(__dirname, srcDir + 'content.ts'),
             options: path.join(__dirname, srcDir + 'options.ts'),
@@ -143,8 +156,8 @@ module.exports = env => {
                         context: './public',
                         filter: async (path) => {
                             if (path.match(/(\/|\\)_locales(\/|\\).+/)) {
-                                if (env.browser.toLowerCase() === "edge" 
-                                        && !edgeLanguages.includes(path.match(/(?<=\/_locales\/)[^/]+(?=\/[^/]+$)/)[0])) {
+                                if (env.browser.toLowerCase() === "edge"
+                                    && !edgeLanguages.includes(path.match(/(?<=\/_locales\/)[^/]+(?=\/[^/]+$)/)[0])) {
                                     return false;
                                 }
 
@@ -177,7 +190,7 @@ module.exports = env => {
                                         parsed.Description.message = parsed.Description.message.slice(0, 129) + "...";
                                     }
                                 }
-                
+
                                 return Buffer.from(JSON.stringify(parsed));
                             }
 
@@ -192,7 +205,14 @@ module.exports = env => {
                 stream: env.stream,
                 autoupdate: env.autoupdate,
             }),
-            new configDiffPlugin()
+
+            new webpack.DefinePlugin({
+                'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL),
+                'process.env.SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY),
+                'process.env.SUPABASE_SERVICE_ROLE_KEY': JSON.stringify(process.env.SUPABASE_SERVICE_ROLE_KEY),
+                'process.env.SUPABASE_FUNCTION_URL': JSON.stringify(process.env.SUPABASE_FUNCTION_URL),
+                'process.env.MANUAL_LABELER_TOKEN': JSON.stringify(process.env.MANUAL_LABELER_TOKEN)
+            })
         ],
         performance: {
             hints: false,

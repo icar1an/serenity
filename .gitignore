@@ -3,10 +3,16 @@ ignored
 .idea/
 node_modules
 web-ext-artifacts
-.vscode/
+
 dist/
 tmp/
 .DS_Store
 ci/invidious_instances.json
 ci/piped_instances.json
 test-results
+
+# Environment variables (secrets)
+.env
+.env.local
+.env.*.local
+*.env
