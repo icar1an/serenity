@@ -6,6 +6,24 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-manual-labeler-token',
 }
 
+function normalizeId(id: string): string {
+    if (!id) return id;
+    // Aggressively strip multiple leading slashes, @ symbols, and various YouTube path prefixes
+    // This handles: /@handle, @@handle, /@/@handle, /channel/UC..., //channel//UC..., etc.
+    return id.trim().replace(/^(\/?(?:channel|user|c)\/|[\s/@]+)+/i, '').replace(/\/+$/, '');
+}
+
+function cleanValue(val: any): any {
+    if (typeof val === 'string') {
+        const cleaned = val.trim();
+        if (cleaned.toLowerCase() === '(unknown)' || cleaned === 'null' || cleaned === 'undefined') {
+            return null;
+        }
+        return cleaned;
+    }
+    return val;
+}
+
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
@@ -72,7 +90,7 @@ Deno.serve(async (req: Request) => {
         // Fetch candidates
         let query = supabaseClient
             .from('channels')
-            .select('id, youtube_channel_id, channel_title, handle, description, sample_video_id, sample_thumbnail, sample_title, sample_description')
+            .select('*') // Use * to avoid crash if specific columns don't exist yet
             .limit(50) // Fetch a batch
 
         if (votedChannelIds.length > 0) {
@@ -103,15 +121,19 @@ Deno.serve(async (req: Request) => {
         const item = candidates[Math.floor(Math.random() * candidates.length)];
 
         // Format for frontend
+        const channelTitle = cleanValue(item.channel_title);
+        const handle = item.handle ? normalizeId(item.handle) : null;
+        const fallbackTitle = handle ? `@${handle}` : normalizeId(item.youtube_channel_id);
+
         const responseItem = {
             id: item.id, // The UUID for voting
-            youtube_channel_id: item.youtube_channel_id,
-            channel_title: item.channel_title,
-            handle: item.handle,
-            sample_video_id: item.sample_video_id,
-            sample_thumbnail: item.sample_thumbnail,
-            sample_title: item.sample_title || item.channel_title,
-            sample_description: item.sample_description || item.description
+            youtube_channel_id: normalizeId(item.youtube_channel_id),
+            channel_title: channelTitle || fallbackTitle,
+            handle: handle,
+            sample_video_id: cleanValue(item.sample_video_id),
+            sample_thumbnail: cleanValue(item.sample_thumbnail) || (item.sample_video_id ? `https://i.ytimg.com/vi/${item.sample_video_id}/hqdefault.jpg` : null),
+            sample_title: cleanValue(item.sample_title) || channelTitle || fallbackTitle,
+            sample_description: cleanValue(item.sample_description) || cleanValue(item.description)
         };
 
         return new Response(

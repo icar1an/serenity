@@ -41,6 +41,13 @@ export interface ChannelData {
     channel_metadata?: Record<string, unknown>;
     feature_vector?: Record<string, number>;
     tags?: string[];
+    // New metadata columns
+    channel_title?: string;
+    description?: string;
+    sample_video_id?: string;
+    sample_thumbnail?: string;
+    sample_title?: string;
+    sample_description?: string;
 }
 
 export interface CachedAnalysis {
@@ -91,7 +98,8 @@ class SupabaseGateway {
         youtubeChannelId: string,
         handle?: string,
         channelMetadata?: Record<string, unknown>,
-        featureVector?: Record<string, number>
+        featureVector?: Record<string, number>,
+        additionalMetadata?: Partial<Omit<ChannelData, 'id' | 'youtube_channel_id' | 'handle' | 'channel_metadata' | 'feature_vector' | 'tags'>>
     ): Promise<string | null> {
         if (!this.isEnabled() || !this.client) {
             return null;
@@ -131,6 +139,11 @@ class SupabaseGateway {
         }
         if (featureVector !== undefined) {
             payload.feature_vector = featureVector;
+        }
+
+        // Add additional metadata if provided
+        if (additionalMetadata) {
+            Object.assign(payload, additionalMetadata);
         }
 
         try {
@@ -308,7 +321,8 @@ class SupabaseGateway {
         handle?: string,
         channelMetadata?: Record<string, unknown>,
         featureVector?: Record<string, number>,
-        tags?: string[]
+        tags?: string[],
+        additionalMetadata?: Partial<Omit<ChannelData, 'id' | 'youtube_channel_id' | 'handle' | 'channel_metadata' | 'feature_vector' | 'tags'>>
     ): Promise<void> {
         if (!this.isEnabled() || !this.client) {
             console.debug('[Serenity] Skipping Supabase channel upsert (gateway disabled).');
@@ -334,6 +348,11 @@ class SupabaseGateway {
         }
         if (tags !== undefined) {
             payload.tags = tags;
+        }
+
+        // Add additional metadata if provided
+        if (additionalMetadata) {
+            Object.assign(payload, additionalMetadata);
         }
 
         try {

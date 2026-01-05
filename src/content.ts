@@ -3,6 +3,7 @@ import Config from "./config";
 import Utils from "./utils";
 import { setupVideoModule, getVideoID, getChannelIDInfo, checkVideoIDChange } from "../maze-utils/src/video";
 
+import { normalizeYoutubeId } from "./utils/youtubeUtils";
 import { cleanPage } from "./utils/pageCleaner";
 import { initContentHiding, refreshContentHiding } from "./contentHider";
 import * as documentScript from "../dist/js/document.js";
@@ -97,10 +98,14 @@ chrome.runtime.onMessage.addListener((request: Message, sender: unknown, sendRes
             const thumbnailUrl = currentVideoID
                 ? `https://i.ytimg.com/vi/${currentVideoID}/hqdefault.jpg`
                 : null;
+
+            const cleanChannelId = normalizeYoutubeId(channelInfo.id);
+            const cleanHandle = channelInfo.author?.startsWith('@') ? normalizeYoutubeId(channelInfo.author) : undefined;
+
             sendResponse({
                 videoId: currentVideoID,
-                channelId: channelInfo.id,
-                handle: channelInfo.author?.startsWith('@') ? channelInfo.author : undefined,
+                channelId: cleanChannelId,
+                handle: cleanHandle,
                 channelTitle: channelInfo.author,
                 title: document.querySelector('h1.ytd-video-primary-info-renderer, h1.title')?.textContent?.trim()
                     || document.querySelector('meta[name="title"]')?.getAttribute('content'),

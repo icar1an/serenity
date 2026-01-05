@@ -8,7 +8,7 @@
 // ============================================================================
 // STATE
 // ============================================================================
-
+let selectedIsAi = null;
 let isSaving = false;
 let currentQueueItem = null;
 let currentQueueItemId = null;
@@ -123,16 +123,99 @@ function buildVideoUrl(videoId) {
 /**
  * Build YouTube channel URL
  */
-function buildChannelUrl(channelId, handle) {
-    if (handle) {
-        const h = handle.startsWith('@') ? handle : `@${handle}`;
-        return `https://www.youtube.com/${h}`;
-    }
-    if (channelId) {
-        return `https://www.youtube.com/channel/${channelId}`;
-    }
-    return '#';
+/**
+ * Normalize channel ID or handle
+ */
+function normalize(id) {
+    if (!id) return id;
+    // Aggressively strip multiple leading slashes, @ symbols, and various YouTube path prefixes
+    // This handles: /@handle, @@handle, /@/@handle, /channel/UC..., //channel//UC..., etc.
+    return id.trim().replace(/^(\/?(?:channel|user|c)\/|[\s/@]+)+/i, '').replace(/\/+$/, '');
 }
+
+/**
+ * Clean string values
+ */
+function cleanValue(val) {
+    if (!val) return null;
+    if (typeof val === 'string') {
+        const cleaned = val.trim();
+        if (cleaned.toLowerCase() === '(unknown)' || cleaned === 'null' || cleaned === 'undefined') {
+            return null;
+        }
+        return cleaned;
+    }
+    return val;
+}
+
+/**
+ * Build YouTube channel URL
+ */
+function buildChannelUrl(channelId, handle) {
+    const identifier = normalize(handle || channelId);
+    if (!identifier) return '#';
+
+    // If it looks like a UC channel ID (24 chars, starts with UC), use /channel/ format
+    if (/^UC[\w-]{22}$/.test(identifier)) {
+        return `https://www.youtube.com/channel/${identifier}`;
+    }
+
+    // Default to handle/custom URL format which uses @ syntax in modern YouTube
+    return `https://www.youtube.com/@${identifier}`;
+}
+
+/**
+ * Fetch thumbnail from channel page
+ */
+async function getThumbnailFromChannelPage(handleOrId) {
+    if (!handleOrId) return null;
+
+    try {
+        const url = buildChannelUrl(null, handleOrId);
+        if (url === '#') return null;
+
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({
+                message: "sendRequest",
+                type: "GET",
+                url: url
+            }, (response) => {
+                if (!response || !response.ok || !response.responseText) {
+                    resolve(null);
+                    return;
+                }
+
+                const html = response.responseText;
+                try {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    // Try multiple meta tags
+                    const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+                    const twitterImage = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+                    const linkImage = doc.querySelector('link[rel="image_src"]')?.getAttribute('href');
+
+                    const foundImage = ogImage || twitterImage || linkImage;
+
+                    if (foundImage) {
+                        console.log('[Serenity Labeler] Found thumbnail:', foundImage);
+                        resolve(foundImage);
+                    } else {
+                        console.warn('[Serenity Labeler] No thumbnail found in page metadata');
+                        resolve(null);
+                    }
+                } catch (parseError) {
+                    console.error('[Serenity Labeler] Failed to parse HTML:', parseError);
+                    resolve(null);
+                }
+            });
+        });
+    } catch (e) {
+        console.error('[Serenity Labeler] Failed to fetch thumbnail fallback:', e);
+        return null;
+    }
+}
+
 
 /**
  * Load queue item data into UI
@@ -154,13 +237,16 @@ function loadCandidateData(queueItem) {
     }
 
     // Extract data from queue item
-    const videoId = queueItem.sample_video_id || null;
-    const thumbnailUrl = queueItem.sample_thumbnail || null;
-    const title = queueItem.sample_title || null;
-    const desc = queueItem.sample_description || null;
-    const chId = queueItem.youtube_channel_id;
-    const chTitle = queueItem.channel_title || null;
-    const handle = queueItem.handle || null;
+    const videoId = cleanValue(queueItem.sample_video_id);
+    const thumbnailUrl = cleanValue(queueItem.sample_thumbnail);
+    const title = cleanValue(queueItem.sample_title);
+    const desc = cleanValue(queueItem.sample_description);
+    const chId = normalize(queueItem.youtube_channel_id);
+    const chTitle = cleanValue(queueItem.channel_title);
+    const handle = queueItem.handle ? normalize(queueItem.handle) : null;
+
+    const displayHandle = handle ? `@${handle}` : chId;
+    const candidateTitle = title || chTitle || displayHandle || '(unknown)';
 
     // Set video link
     if (videoLink) {
@@ -175,35 +261,41 @@ function loadCandidateData(queueItem) {
 
     // Set thumbnail
     if (thumbnail) {
-        if (thumbnailUrl) {
-            thumbnail.src = thumbnailUrl;
-            thumbnail.alt = title || 'Video thumbnail';
+        let finalThumbnailUrl = thumbnailUrl;
+        if (!finalThumbnailUrl && videoId) {
+            finalThumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        }
+
+        if (finalThumbnailUrl) {
+            thumbnail.src = finalThumbnailUrl;
+            thumbnail.alt = candidateTitle;
         } else {
             thumbnail.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="640" height="360"%3E%3Crect fill="%23ddd" width="640" height="360"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="20" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo thumbnail%3C/text%3E%3C/svg%3E';
             thumbnail.alt = 'No thumbnail available';
+
+            // Fallback: Try to fetch thumbnail from channel page
+            if (displayHandle || chId) {
+                getThumbnailFromChannelPage(displayHandle || chId).then(url => {
+                    if (url && thumbnail) {
+                        thumbnail.src = url;
+                        // Determine if we should update other metadata
+                        // We could also emit an event or update the local item, handling that later if needed
+                    }
+                });
+            }
         }
     }
 
     // Set video title
     if (videoTitle) {
-        videoTitle.textContent = title || chTitle || `Channel: ${chId}` || '(unknown)';
+        videoTitle.textContent = candidateTitle;
     }
 
     // Set channel info
-    if (channelTitle) channelTitle.textContent = chTitle || '(unknown)';
+    if (channelTitle) channelTitle.textContent = chTitle || displayHandle || '(unknown)';
 
     if (channelHandle) {
-        if (handle) {
-            let displayHandle = handle;
-            if (handle.startsWith('/@')) {
-                displayHandle = handle.substring(1);
-            } else if (!handle.startsWith('@')) {
-                displayHandle = `@${handle}`;
-            }
-            channelHandle.textContent = displayHandle;
-        } else {
-            channelHandle.textContent = chId || '(unknown)';
-        }
+        channelHandle.textContent = displayHandle || '(unknown)';
     }
 
     // Set channel ID link
@@ -245,6 +337,39 @@ async function fetchNextCandidate(isPolling = false) {
     }
 
     isLoadingCandidate = true;
+
+    // 1. Check for manual candidate in URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const manualChannelId = urlParams.get('channelId');
+    if (manualChannelId && !isPolling) {
+        console.log('[Serenity Labeler] Found manual candidate in URL:', manualChannelId);
+
+        // Construct a pseudo queue item from URL params
+        const manualItem = {
+            id: null, // We don't have the UUID yet, vote-channel can handle upsert by youtube_channel_id if we modify it, 
+            // or we fetch/create it here. For now, let's assume we need to use youtube_channel_id.
+            youtube_channel_id: normalize(manualChannelId), // Normalize to ensure clean ID is stored/displayed
+            handle: urlParams.get('handle'),
+            channel_title: urlParams.get('channelTitle'),
+            sample_video_id: urlParams.get('videoId'),
+            sample_thumbnail: urlParams.get('thumbnail') || (urlParams.get('videoId') ? `https://i.ytimg.com/vi/${urlParams.get('videoId')}/hqdefault.jpg` : null),
+            sample_title: urlParams.get('title'),
+            sample_description: urlParams.get('description')
+        };
+
+        currentQueueItem = manualItem;
+        currentQueueItemId = manualChannelId; // Using youtube_channel_id as temp ID
+        loadCandidateData(manualItem);
+
+        if (btnAi) btnAi.disabled = false;
+        if (btnNotAi) btnNotAi.disabled = false;
+        isLoadingCandidate = false;
+        hideStatus();
+
+        // Clean up URL to avoid re-loading on refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+    }
 
     if (!isPolling) {
         showStatus('loading', 'Loading next channel…', false);
@@ -317,13 +442,18 @@ async function fetchNextCandidate(isPolling = false) {
         }
 
         // Success: Load queue item into UI
+        // Normalize ID from API just in case DB is dirty
+        if (data.item.youtube_channel_id) {
+            data.item.youtube_channel_id = normalize(data.item.youtube_channel_id);
+        }
+
         console.log('[Serenity Labeler] Loaded channel:', data.item.youtube_channel_id);
         currentQueueItem = data.item;
         currentQueueItemId = data.item.id;
         loadCandidateData(data.item);
 
         // Reset UI state
-
+        selectedIsAi = null;
         if (btnAi) {
             btnAi.classList.remove('selected');
             btnAi.disabled = false;
@@ -380,10 +510,25 @@ async function submitLabel(isAi) {
         }
 
         const payload = {
-            channel_id: currentQueueItemId, // vote_channel expects 'channel_id' (UUID)
-            user_identifier: labelerId,     // vote_channel expects 'user_identifier'
+            channel_id: currentQueueItemId,
+            user_identifier: labelerId,
             is_ai: isAi,
+            metadata: {
+                channel_title: currentQueueItem.channel_title,
+                description: currentQueueItem.sample_description,
+                sample_video_id: currentQueueItem.sample_video_id,
+                sample_thumbnail: currentQueueItem.sample_thumbnail,
+                sample_title: currentQueueItem.sample_title,
+                sample_description: currentQueueItem.sample_description,
+                handle: currentQueueItem.handle
+            }
         };
+
+        // If this was a manual entry, we might need to tell the backend to look up by youtube_channel_id
+        if (!currentQueueItem.id) {
+            // @ts-ignore
+            payload.youtube_channel_id = currentQueueItem.youtube_channel_id;
+        }
 
         const response = await fetch(config.labelerMarkUrl, {
             method: 'POST',
@@ -393,7 +538,7 @@ async function submitLabel(isAi) {
 
         const data = await response.json();
 
-        if (!response.ok || !data.ok) {
+        if (!response.ok || !data.success) {
             throw new Error(data.error || `HTTP ${response.status}`);
         }
 
